@@ -1,7 +1,8 @@
 import cv2
 import os
 from datetime import datetime
-
+import keyboard
+import numpy as np
 
 PATCHES_DESCRIPTION_FILE = 'description.txt'
 INPUT_REL_PATH = 'input/'
@@ -19,7 +20,9 @@ class Patcher:
         self.patch_index = 0
         self.rect_pos_x = 0
         self.rect_pos_y = 0
-        self.rect_size = 100
+        self.box_width = 10
+        self.box_height = 10
+        # self.rect_size = 100
         self.img_height = img.shape[0]
         self.img_width = img.shape[1]
         self.img = img
@@ -40,10 +43,10 @@ class Patcher:
         image = self.img_canvas.copy()
         cv2.rectangle(image,
                       (self.rect_pos_x, self.rect_pos_y),
-                      (self.rect_pos_x + self.rect_size, self.rect_pos_y + self.rect_size), (0, 0, 0))
+                      (self.rect_pos_x + self.box_width, self.rect_pos_y + self.box_height), (0, 0, 0))
         cv2.rectangle(image,
                       (self.rect_pos_x+1, self.rect_pos_y+1),
-                      (self.rect_pos_x-1 + self.rect_size, self.rect_pos_y-1 + self.rect_size), (255, 255, 255))
+                      (self.rect_pos_x-1 + self.box_width, self.rect_pos_y-1 + self.box_height), (255, 255, 255))
         cv2.imshow(self.window_name, image)
 
     def save_patch(self, car_presence_flag: str):
@@ -53,9 +56,9 @@ class Patcher:
             rectangle_color = BB_COLOR_IF_CAR_IS_PRESENT
         cv2.rectangle(self.img_canvas,
                       (self.rect_pos_x, self.rect_pos_y),
-                      (self.rect_pos_x + self.rect_size, self.rect_pos_y + self.rect_size), rectangle_color)
-        crop = self.img[self.rect_pos_y:self.rect_pos_y + self.rect_size,
-                        self.rect_pos_x:self.rect_pos_x + self.rect_size]
+                      (self.rect_pos_x + self.box_width, self.rect_pos_y + self.box_height), rectangle_color)
+        crop = self.img[self.rect_pos_y:self.rect_pos_y + self.box_height,
+                        self.rect_pos_x:self.rect_pos_x + self.box_width]
         resize = cv2.resize(crop, (PATCH_SIZE, PATCH_SIZE))
         cv2.imwrite(f'{OUTPUT_REL_PATH}{self.subfolder}/{car_presence_flag}_{self.img_name}'
                     f'_patch{self.patch_index}.{PATCH_FILENAME_EXTENSION}', resize)
@@ -63,9 +66,15 @@ class Patcher:
         self.patch_index += 1
 
     def save_txt_description(self, car_presence_flag: str):
-        with open(f"{OUTPUT_REL_PATH}/{self.subfolder}/{PATCHES_DESCRIPTION_FILE}", 'a', newline='') as f:
-            f.write(f'{car_presence_flag}_{self.img_name}'
-                    f'_patch{self.patch_index}.{PATCH_FILENAME_EXTENSION} {car_presence_flag}\n')
+        center_x = np.round((self.rect_pos_x + self.box_width/2)/self.img_width, 4)
+        center_y = np.round((self.rect_pos_y + self.box_height/2)/self.img_height, 4)
+        width = np.round(self.box_width/self.img_width, 4)
+        height = np.round(self.box_height / self.img_height, 4)
+
+        with open(f"{OUTPUT_REL_PATH}/{self.subfolder}/{self.img_name}.txt", 'a', newline='') as f:
+            f.write(f'{car_presence_flag} {center_x} '
+                    f'{center_y} '
+                    f'{width} {height}\n')
 
     def event_dispatcher(self, event, x, y, flags, param):
         self.rect_pos_x = x
@@ -94,15 +103,25 @@ class Patcher:
 
         # mousewheel scroll
         if event == 10:
-            # sign of the flag shows direction of mousewheel
-            if flags > 0:
-                # scroll up
-                if self.rect_size < (min(self.img_height, self.img_width) - MOUSEWHEEL_BOXSIZE_STEP):
-                    self.rect_size += MOUSEWHEEL_BOXSIZE_STEP
-            else:
-                # scroll down
-                if self.rect_size > MOUSEWHEEL_BOXSIZE_STEP * 2:
-                    self.rect_size -= MOUSEWHEEL_BOXSIZE_STEP
+            if keyboard.read_key() == 'right':
+                if flags > 0:
+                    # scroll up
+                    if self.box_width < (min(self.img_height, self.img_width) - MOUSEWHEEL_BOXSIZE_STEP):
+                        self.box_width += MOUSEWHEEL_BOXSIZE_STEP
+                else:
+                    # scroll down
+                    if self.box_width > MOUSEWHEEL_BOXSIZE_STEP * 2:
+                        self.box_width -= MOUSEWHEEL_BOXSIZE_STEP
+
+            elif keyboard.read_key() == 'left':
+                if flags > 0:
+                    # scroll up
+                    if self.box_height < (min(self.img_height, self.img_width) - MOUSEWHEEL_BOXSIZE_STEP):
+                        self.box_height += MOUSEWHEEL_BOXSIZE_STEP
+                else:
+                    # scroll down
+                    if self.box_height > MOUSEWHEEL_BOXSIZE_STEP * 2:
+                        self.box_height -= MOUSEWHEEL_BOXSIZE_STEP
 
 
 def get_list_of_image_names_for_processing():
@@ -125,6 +144,7 @@ if len(images) > 0:
     p = Patcher(im_name, im, new_subfolder)
 
     while 1:
+
         key = cv2.waitKey(15)
         if key == ord(' '):
             if len(images) > 0:
