@@ -113,7 +113,7 @@ class Patcher:
                     if self.box_width > MOUSEWHEEL_BOXSIZE_STEP * 2:
                         self.box_width -= MOUSEWHEEL_BOXSIZE_STEP
 
-            elif keyboard.read_key() == 'left':
+            elif keyboard.read_key() == 'down':
                 if flags > 0:
                     # scroll up
                     if self.box_height < (min(self.img_height, self.img_width) - MOUSEWHEEL_BOXSIZE_STEP):
